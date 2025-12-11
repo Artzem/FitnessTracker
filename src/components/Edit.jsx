@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { loadWorkouts, syncWorkouts, loadFood, syncFood } from '../utils/dataSync'
+import { loadWorkouts, syncWorkouts, loadFood, syncFood, loadFoodList, syncFoodList } from '../utils/dataSync'
 import { getDateKey } from '../utils/date'
 
 export default function Edit() {
@@ -9,15 +9,21 @@ export default function Edit() {
   const [workouts, setWorkouts] = useState({})
   const [selectedWorkout, setSelectedWorkout] = useState('')
   const [newWorkoutName, setNewWorkoutName] = useState('')
-  const [newExercise, setNewExercise] = useState({ name: '', weight: '', totalSets: 3, reps: '10', completedSets: [] })
-  const [selectedMeal, setSelectedMeal] = useState('breakfast')
-  const [newFood, setNewFood] = useState({ name: '', calories: '', protein: '' })
+  const [editingExercise, setEditingExercise] = useState(null)
+  const [draggedExercise, setDraggedExercise] = useState(null)
+  
+  // Food state
+  const [foodList, setFoodList] = useState([])
+  const [newFoodItem, setNewFoodItem] = useState({ name: '', calories: '', protein: '' })
+  
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       const data = await loadWorkouts()
+      const foods = await loadFoodList()
       setWorkouts(data)
+      setFoodList(foods)
       if (Object.keys(data).length > 0) {
         setSelectedWorkout(Object.keys(data)[0])
       }
@@ -47,30 +53,98 @@ export default function Edit() {
   }
 
   const addExercise = async () => {
-    if (!newExercise.name.trim() || !selectedWorkout) return
+    if (!selectedWorkout) return
+    const newExercise = {
+      name: 'New Exercise',
+      sets: [
+        { weight: '', reps: '10', completed: false, notes: '' },
+        { weight: '', reps: '10', completed: false, notes: '' },
+        { weight: '', reps: '10', completed: false, notes: '' }
+      ]
+    }
     const next = {
       ...workouts,
-      [selectedWorkout]: [...(workouts[selectedWorkout] || []), { ...newExercise, completedSets: [] }]
+      [selectedWorkout]: [...(workouts[selectedWorkout] || []), newExercise]
     }
     await saveWorkouts(next)
-    setNewExercise({ name: '', weight: '', totalSets: 3, reps: '10', completedSets: [] })
+    setEditingExercise({ workoutName: selectedWorkout, exerciseIdx: next[selectedWorkout].length - 1 })
   }
 
   const removeExercise = async (wName, idx) => {
     const next = { ...workouts }
     next[wName] = next[wName].filter((_, i) => i !== idx)
     await saveWorkouts(next)
+    if (editingExercise?.exerciseIdx === idx) {
+      setEditingExercise(null)
+    }
   }
 
-  const addFoodItem = async () => {
-    if (!newFood.name.trim()) return
-    const today = new Date()
-    const dateKey = getDateKey(today)
-    const currentData = await loadFood(dateKey)
-    
-    currentData[selectedMeal] = [...(currentData[selectedMeal] || []), newFood]
-    await syncFood(dateKey, currentData)
-    setNewFood({ name: '', calories: '', protein: '' })
+  const updateExerciseName = async (wName, idx, name) => {
+    const next = { ...workouts }
+    next[wName][idx].name = name
+    await saveWorkouts(next)
+  }
+
+  const addSetToExercise = async (wName, idx) => {
+    const next = { ...workouts }
+    next[wName][idx].sets.push({ weight: '', reps: '10', completed: false, notes: '' })
+    await saveWorkouts(next)
+  }
+
+  const removeSetFromExercise = async (wName, exIdx, setIdx) => {
+    const next = { ...workouts }
+    next[wName][exIdx].sets = next[wName][exIdx].sets.filter((_, i) => i !== setIdx)
+    await saveWorkouts(next)
+  }
+
+  const updateSet = async (wName, exIdx, setIdx, field, value) => {
+    const next = { ...workouts }
+    next[wName][exIdx].sets[setIdx][field] = value
+    await saveWorkouts(next)
+  }
+
+  // Drag and drop handlers
+  const handleDragStart = (e, idx) => {
+    setDraggedExercise(idx)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleDrop = async (e, dropIdx) => {
+    e.preventDefault()
+    if (draggedExercise === null || draggedExercise === dropIdx) return
+
+    const next = { ...workouts }
+    const exercises = [...next[selectedWorkout]]
+    const [removed] = exercises.splice(draggedExercise, 1)
+    exercises.splice(dropIdx, 0, removed)
+    next[selectedWorkout] = exercises
+
+    await saveWorkouts(next)
+    setDraggedExercise(null)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedExercise(null)
+  }
+
+  // Food management
+  const addFoodToList = async () => {
+    if (!newFoodItem.name.trim()) return
+    const updated = [...foodList, newFoodItem]
+    setFoodList(updated)
+    await syncFoodList(updated)
+    setNewFoodItem({ name: '', calories: '', protein: '' })
+  }
+
+  const removeFoodFromList = async (idx) => {
+    const updated = foodList.filter((_, i) => i !== idx)
+    setFoodList(updated)
+    await syncFoodList(updated)
   }
 
   if (loading) {
@@ -83,7 +157,7 @@ export default function Edit() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4 sm:p-8">
-      <div className="max-w-4xl mx-auto pt-4 pb-8">
+      <div className="max-w-6xl mx-auto pt-4 pb-8">
         <button
           onClick={() => navigate('/')}
           className="group flex items-center gap-2 text-purple-400 hover:text-purple-300 font-semibold mb-8 transition-all"
@@ -99,9 +173,7 @@ export default function Edit() {
               <button
                 onClick={() => setTab('workouts')}
                 className={`flex-1 py-6 font-bold text-lg transition-all relative ${
-                  tab === 'workouts' 
-                    ? 'text-white' 
-                    : 'text-gray-400 hover:text-gray-300'
+                  tab === 'workouts' ? 'text-white' : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
                 {tab === 'workouts' && (
@@ -115,9 +187,7 @@ export default function Edit() {
               <button
                 onClick={() => setTab('food')}
                 className={`flex-1 py-6 font-bold text-lg transition-all relative ${
-                  tab === 'food' 
-                    ? 'text-white' 
-                    : 'text-gray-400 hover:text-gray-300'
+                  tab === 'food' ? 'text-white' : 'text-gray-400 hover:text-gray-300'
                 }`}
               >
                 {tab === 'food' && (
@@ -125,7 +195,7 @@ export default function Edit() {
                 )}
                 <span className="relative z-10 flex items-center justify-center gap-2">
                   <span className="text-2xl">🥗</span>
-                  <span>Food</span>
+                  <span>Food Library</span>
                 </span>
               </button>
             </div>
@@ -138,7 +208,10 @@ export default function Edit() {
                     <div className="flex flex-col sm:flex-row gap-3">
                       <select
                         value={selectedWorkout}
-                        onChange={(e) => setSelectedWorkout(e.target.value)}
+                        onChange={(e) => {
+                          setSelectedWorkout(e.target.value)
+                          setEditingExercise(null)
+                        }}
                         className="flex-1 p-4 bg-white/5 border border-white/20 rounded-xl text-white font-semibold focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all"
                       >
                         {Object.keys(workouts).map((w) => (
@@ -171,70 +244,140 @@ export default function Edit() {
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <h3 className="font-black text-2xl text-white">Exercises</h3>
-                    <div className="space-y-3">
-                      {(workouts[selectedWorkout] || []).map((ex, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-white/5 hover:bg-white/10 p-5 rounded-xl border border-white/10 transition-all group">
-                          <div className="flex-1">
-                            <p className="font-bold text-white text-lg mb-1">{ex.name}</p>
-                            <div className="flex gap-3 text-sm">
-                              <span className="text-purple-300">📊 {ex.totalSets} sets × {ex.reps} reps</span>
-                              {ex.weight && <span className="text-blue-300">⚡ {ex.weight}</span>}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Exercise List */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-black text-2xl text-white">Exercises</h3>
+                        <button
+                          onClick={addExercise}
+                          className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 rounded-lg font-semibold transition-all"
+                        >
+                          ➕ Add Exercise
+                        </button>
+                      </div>
+                      <div className="space-y-3">
+                        {(workouts[selectedWorkout] || []).map((ex, idx) => (
+                          <div
+                            key={idx}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, idx)}
+                            onDragOver={handleDragOver}
+                            onDrop={(e) => handleDrop(e, idx)}
+                            onDragEnd={handleDragEnd}
+                            className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-move ${
+                              editingExercise?.exerciseIdx === idx
+                                ? 'bg-blue-500/20 border-blue-500/50'
+                                : draggedExercise === idx
+                                ? 'bg-white/20 border-white/40 opacity-50'
+                                : 'bg-white/5 border-white/10 hover:bg-white/10'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3 flex-1">
+                              <span className="text-gray-400 text-xl cursor-grab active:cursor-grabbing">⋮⋮</span>
+                              <div>
+                                <p className="font-bold text-white text-lg">{ex.name}</p>
+                                <p className="text-sm text-gray-400">{ex.sets?.length || 0} sets</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setEditingExercise({ workoutName: selectedWorkout, exerciseIdx: idx })}
+                                className="px-3 py-2 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-lg transition-all"
+                              >
+                                ✏️ Edit
+                              </button>
+                              <button
+                                onClick={() => removeExercise(selectedWorkout, idx)}
+                                className="px-3 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-300 rounded-lg transition-all"
+                              >
+                                🗑️
+                              </button>
                             </div>
                           </div>
-                          <button
-                            onClick={() => removeExercise(selectedWorkout, idx)}
-                            className="text-red-400 hover:text-red-300 font-semibold opacity-0 group-hover:opacity-100 transition-all"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="border-t border-white/10 pt-8 space-y-4">
-                    <h3 className="font-black text-2xl text-white">Add Exercise</h3>
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        value={newExercise.name}
-                        onChange={(e) => setNewExercise({ ...newExercise, name: e.target.value })}
-                        placeholder="Exercise name"
-                        className="w-full p-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-500 font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                      />
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <input
-                          type="number"
-                          value={newExercise.totalSets}
-                          onChange={(e) => setNewExercise({ ...newExercise, totalSets: parseInt(e.target.value) || 3 })}
-                          placeholder="Sets"
-                          min="1"
-                          max="10"
-                          className="p-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-500 font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                        />
-                        <input
-                          type="text"
-                          value={newExercise.reps}
-                          onChange={(e) => setNewExercise({ ...newExercise, reps: e.target.value })}
-                          placeholder="Reps (e.g., 10 or 8-12)"
-                          className="p-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-500 font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                        />
-                        <input
-                          type="text"
-                          value={newExercise.weight}
-                          onChange={(e) => setNewExercise({ ...newExercise, weight: e.target.value })}
-                          placeholder="Weight (optional)"
-                          className="p-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-500 font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                        />
+                        ))}
                       </div>
-                      <button
-                        onClick={addExercise}
-                        className="w-full py-5 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-black text-lg rounded-xl transition-all transform hover:scale-105 shadow-lg"
-                      >
-                        ➕ Add Exercise
-                      </button>
+                    </div>
+
+                    {/* Exercise Editor */}
+                    <div className="space-y-4">
+                      {editingExercise ? (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-black text-2xl text-white">Edit Exercise</h3>
+                            <button
+                              onClick={() => setEditingExercise(null)}
+                              className="text-gray-400 hover:text-white"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          
+                          <input
+                            type="text"
+                            value={workouts[editingExercise.workoutName][editingExercise.exerciseIdx].name}
+                            onChange={(e) => updateExerciseName(editingExercise.workoutName, editingExercise.exerciseIdx, e.target.value)}
+                            className="w-full p-4 bg-white/5 border border-white/20 rounded-xl text-white font-bold text-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="Exercise name"
+                          />
+
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-bold text-white">Sets</h4>
+                              <button
+                                onClick={() => addSetToExercise(editingExercise.workoutName, editingExercise.exerciseIdx)}
+                                className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 text-green-300 border border-green-500/30 rounded-lg text-sm font-semibold transition-all"
+                              >
+                                ➕ Add Set
+                              </button>
+                            </div>
+                            
+                            {workouts[editingExercise.workoutName][editingExercise.exerciseIdx].sets.map((set, setIdx) => (
+                              <div key={setIdx} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="font-bold text-white">Set {setIdx + 1}</span>
+                                  <button
+                                    onClick={() => removeSetFromExercise(editingExercise.workoutName, editingExercise.exerciseIdx, setIdx)}
+                                    className="text-red-400 hover:text-red-300 text-sm"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <input
+                                    type="text"
+                                    value={set.weight}
+                                    onChange={(e) => updateSet(editingExercise.workoutName, editingExercise.exerciseIdx, setIdx, 'weight', e.target.value)}
+                                    placeholder="Weight (e.g., 135 lbs)"
+                                    className="p-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-500 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={set.reps}
+                                    onChange={(e) => updateSet(editingExercise.workoutName, editingExercise.exerciseIdx, setIdx, 'reps', e.target.value)}
+                                    placeholder="Reps (e.g., 10)"
+                                    className="p-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-500 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                  />
+                                </div>
+                                <input
+                                  type="text"
+                                  value={set.notes}
+                                  onChange={(e) => updateSet(editingExercise.workoutName, editingExercise.exerciseIdx, setIdx, 'notes', e.target.value)}
+                                  placeholder="Notes (optional)"
+                                  className="mt-3 w-full p-3 bg-white/5 border border-white/20 rounded-lg text-white placeholder-gray-500 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center justify-center h-full min-h-[300px] text-gray-500">
+                          <div className="text-center">
+                            <div className="text-6xl mb-4">✏️</div>
+                            <p>Select an exercise to edit</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </>
@@ -243,49 +386,56 @@ export default function Edit() {
               {tab === 'food' && (
                 <>
                   <div className="space-y-4">
-                    <label className="block text-sm font-bold text-green-300 uppercase tracking-wider">Select Meal</label>
-                    <select
-                      value={selectedMeal}
-                      onChange={(e) => setSelectedMeal(e.target.value)}
-                      className="w-full p-4 bg-white/5 border border-white/20 rounded-xl text-white font-semibold focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
-                    >
-                      <option value="breakfast" className="bg-slate-900">🌅 Breakfast</option>
-                      <option value="lunch" className="bg-slate-900">☀️ Lunch</option>
-                      <option value="dinner" className="bg-slate-900">🌙 Dinner</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h3 className="font-black text-2xl text-white">Add Food Item</h3>
+                    <h3 className="font-black text-2xl text-white">Food Library</h3>
+                    <p className="text-gray-400">Add foods to your library to quickly track them daily</p>
+                    
                     <div className="space-y-3">
+                      {foodList.map((food, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-white/5 p-4 rounded-xl border border-white/10">
+                          <div>
+                            <p className="font-bold text-white">{food.name}</p>
+                            <p className="text-sm text-gray-400">{food.calories} cal • {food.protein}g protein</p>
+                          </div>
+                          <button
+                            onClick={() => removeFoodFromList(idx)}
+                            className="text-red-400 hover:text-red-300"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="border-t border-white/10 pt-6 space-y-3">
+                      <h4 className="font-bold text-white">Add New Food</h4>
                       <input
                         type="text"
-                        value={newFood.name}
-                        onChange={(e) => setNewFood({ ...newFood, name: e.target.value })}
+                        value={newFoodItem.name}
+                        onChange={(e) => setNewFoodItem({ ...newFoodItem, name: e.target.value })}
                         placeholder="Food name"
-                        className="w-full p-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-500 font-medium focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
+                        className="w-full p-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-500 font-medium focus:ring-2 focus:ring-green-500 outline-none"
                       />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-3">
                         <input
                           type="number"
-                          value={newFood.calories}
-                          onChange={(e) => setNewFood({ ...newFood, calories: e.target.value })}
+                          value={newFoodItem.calories}
+                          onChange={(e) => setNewFoodItem({ ...newFoodItem, calories: e.target.value })}
                           placeholder="Calories"
-                          className="p-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-500 font-medium focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
+                          className="p-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-500 font-medium focus:ring-2 focus:ring-green-500 outline-none"
                         />
                         <input
                           type="number"
-                          value={newFood.protein}
-                          onChange={(e) => setNewFood({ ...newFood, protein: e.target.value })}
+                          value={newFoodItem.protein}
+                          onChange={(e) => setNewFoodItem({ ...newFoodItem, protein: e.target.value })}
                           placeholder="Protein (g)"
-                          className="p-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-500 font-medium focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition-all"
+                          className="p-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-500 font-medium focus:ring-2 focus:ring-green-500 outline-none"
                         />
                       </div>
                       <button
-                        onClick={addFoodItem}
-                        className="w-full py-5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-black text-lg rounded-xl transition-all transform hover:scale-105 shadow-lg"
+                        onClick={addFoodToList}
+                        className="w-full py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold rounded-xl transition-all"
                       >
-                        ➕ Add Food Item
+                        ➕ Add to Library
                       </button>
                     </div>
                   </div>
