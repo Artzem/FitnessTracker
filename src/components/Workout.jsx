@@ -13,28 +13,30 @@ export default function Workout() {
 
   useEffect(() => {
     const load = async () => {
-      const today = new Date()
-      const dateKey = getDateKey(today)
-      
-      const schedule = await loadSchedule()
-      const workout = getTodayWorkout(today, schedule.skippedDays || [])
-      setTodayWorkout(workout)
+      try {
+        const today = new Date()
+        const dateKey = getDateKey(today)
+        
+        const schedule = await loadSchedule()
+        const workout = getTodayWorkout(today, schedule.skippedDays || [])
+        setTodayWorkout(workout)
 
-      const allWorkouts = await loadWorkouts()
-      let exerciseList = allWorkouts[workout] || []
-      
-      // Load saved progress for today
-      const savedProgress = await loadWorkoutProgress(dateKey)
-      if (savedProgress && savedProgress.workout === workout) {
-        exerciseList = exerciseList.map((ex, idx) => ({
-          ...ex,
-          completedSets: savedProgress.exercises[idx]?.completedSets || []
-        }))
+        const allWorkouts = await loadWorkouts()
+        let exerciseList = allWorkouts[workout] || []
+        
+        // Load saved progress for today
+        const savedProgress = await loadWorkoutProgress(dateKey)
+        if (savedProgress && savedProgress.workout === workout && savedProgress.exercises) {
+          exerciseList = savedProgress.exercises
+        }
+        
+        setExercises(exerciseList)
+        calculateProgress(exerciseList)
+        setLoading(false)
+      } catch (error) {
+        console.error('Error loading workout:', error)
+        setLoading(false)
       }
-      
-      setExercises(exerciseList)
-      calculateProgress(exerciseList)
-      setLoading(false)
     }
     load()
   }, [])
@@ -45,23 +47,27 @@ export default function Workout() {
       return
     }
     let totalSets = 0
-    let completedSetsCount = 0
+    let completedSets = 0
     
     exerciseList.forEach(ex => {
-      totalSets += ex.totalSets
-      completedSetsCount += ex.completedSets.length
+      if (ex.sets && Array.isArray(ex.sets)) {
+        ex.sets.forEach(set => {
+          totalSets++
+          if (set.completed) completedSets++
+        })
+      }
     })
     
-    setProgress(totalSets > 0 ? Math.round((completedSetsCount / totalSets) * 100) : 0)
+    setProgress(totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0)
   }
 
-  const toggleSet = async (exerciseIdx, setNum) => {
+  const toggleSet = async (exerciseIdx, setIdx) => {
     const updated = exercises.map((ex, idx) => {
       if (idx === exerciseIdx) {
-        const completedSets = ex.completedSets.includes(setNum)
-          ? ex.completedSets.filter(s => s !== setNum)
-          : [...ex.completedSets, setNum].sort((a, b) => a - b)
-        return { ...ex, completedSets }
+        const newSets = ex.sets.map((set, sIdx) => 
+          sIdx === setIdx ? { ...set, completed: !set.completed } : set
+        )
+        return { ...ex, sets: newSets }
       }
       return ex
     })
@@ -74,10 +80,7 @@ export default function Workout() {
     const dateKey = getDateKey(today)
     await syncWorkoutProgress(dateKey, {
       workout: todayWorkout,
-      exercises: updated.map(ex => ({
-        name: ex.name,
-        completedSets: ex.completedSets
-      })),
+      exercises: updated,
       date: dateKey
     })
   }
@@ -143,7 +146,10 @@ export default function Workout() {
         ) : (
           <div className="space-y-4">
             {exercises.map((ex, exerciseIdx) => {
-              const allSetsComplete = ex.completedSets.length === ex.totalSets
+              const allSetsComplete = ex.sets && ex.sets.every(set => set.completed)
+              const completedCount = ex.sets ? ex.sets.filter(set => set.completed).length : 0
+              const totalSets = ex.sets ? ex.sets.length : 0
+              
               return (
                 <div key={exerciseIdx} className="group relative">
                   <div className={`absolute -inset-0.5 rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-300 ${
@@ -161,18 +167,6 @@ export default function Workout() {
                         <h3 className={`text-2xl font-bold mb-2 ${allSetsComplete ? 'text-green-300' : 'text-white'}`}>
                           {ex.name}
                         </h3>
-                        <div className="flex flex-wrap gap-2 text-sm mb-4">
-                          <div className="flex items-center gap-2 bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full border border-purple-500/30">
-                            <span className="font-semibold">📊</span>
-                            <span className="font-medium">{ex.totalSets} sets × {ex.reps} reps</span>
-                          </div>
-                          {ex.weight && (
-                            <div className="flex items-center gap-2 bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full border border-blue-500/30">
-                              <span className="font-semibold">⚡</span>
-                              <span className="font-medium">{ex.weight}</span>
-                            </div>
-                          )}
-                        </div>
                       </div>
                       <div className="text-4xl ml-4">
                         {allSetsComplete ? '✅' : exerciseIdx === 0 ? '🔥' : exerciseIdx === 1 ? '💯' : '⭐'}
@@ -181,20 +175,25 @@ export default function Workout() {
                     
                     {/* Set Checkboxes */}
                     <div className="flex flex-wrap gap-3">
-                      {Array.from({ length: ex.totalSets }, (_, i) => i + 1).map(setNum => {
-                        const isCompleted = ex.completedSets.includes(setNum)
+                      {ex.sets && ex.sets.map((set, setIdx) => {
                         return (
                           <button
-                            key={setNum}
-                            onClick={() => toggleSet(exerciseIdx, setNum)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold transition-all ${
-                              isCompleted
+                            key={setIdx}
+                            onClick={() => toggleSet(exerciseIdx, setIdx)}
+                            className={`flex flex-col items-start gap-1 px-4 py-3 rounded-lg font-semibold transition-all ${
+                              set.completed
                                 ? 'bg-green-500/30 border-2 border-green-500 text-green-300'
                                 : 'bg-white/10 border-2 border-white/20 text-white hover:border-white/40'
                             }`}
                           >
-                            <span className="text-lg">{isCompleted ? '✓' : '○'}</span>
-                            <span>Set {setNum}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{set.completed ? '✓' : '○'}</span>
+                              <span>Set {setIdx + 1}</span>
+                            </div>
+                            <div className="text-xs opacity-70">
+                              {set.weight && <span>{set.weight} × </span>}
+                              <span>{set.reps} reps</span>
+                            </div>
                           </button>
                         )
                       })}
@@ -204,7 +203,7 @@ export default function Workout() {
                     <div className="mt-4">
                       <div className="flex items-center justify-between mb-1 text-xs text-gray-400">
                         <span>Exercise Progress</span>
-                        <span>{ex.completedSets.length}/{ex.totalSets} sets</span>
+                        <span>{completedCount}/{totalSets} sets</span>
                       </div>
                       <div className="w-full bg-black/30 rounded-full h-2 overflow-hidden">
                         <div
@@ -213,7 +212,7 @@ export default function Workout() {
                               ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
                               : 'bg-gradient-to-r from-blue-500 to-purple-500'
                           }`}
-                          style={{ width: `${(ex.completedSets.length / ex.totalSets) * 100}%` }}
+                          style={{ width: `${totalSets > 0 ? (completedCount / totalSets) * 100 : 0}%` }}
                         ></div>
                       </div>
                     </div>

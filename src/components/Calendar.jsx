@@ -12,10 +12,16 @@ export default function Calendar() {
 
   useEffect(() => {
     const load = async () => {
-      const workouts = await loadAllWorkoutProgress()
-      const foods = await loadAllFoodProgress()
-      setWorkoutProgress(workouts)
-      setFoodProgress(foods)
+      try {
+        const workouts = await loadAllWorkoutProgress()
+        const foods = await loadAllFoodProgress()
+        setWorkoutProgress(workouts || {})
+        setFoodProgress(foods || {})
+      } catch (error) {
+        console.error('Error loading calendar data:', error)
+        setWorkoutProgress({})
+        setFoodProgress({})
+      }
       setLoading(false)
     }
     load()
@@ -43,11 +49,11 @@ export default function Calendar() {
     let workoutPercent = 0
     let foodPercent = 0
     
-    if (workout && workout.exercises) {
+    if (workout && workout.exercises && Array.isArray(workout.exercises)) {
       let totalSets = 0
       let completedSets = 0
       workout.exercises.forEach(ex => {
-        if (ex.sets) {
+        if (ex.sets && Array.isArray(ex.sets)) {
           ex.sets.forEach(set => {
             totalSets++
             if (set.completed) completedSets++
@@ -57,7 +63,7 @@ export default function Calendar() {
       workoutPercent = totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0
     }
     
-    if (food && food.items) {
+    if (food && food.items && Array.isArray(food.items)) {
       const totalCals = food.items.reduce((sum, item) => sum + (item.eaten ? Number(item.calories) || 0 : 0), 0)
       const goal = food.calorieGoal || 2000
       foodPercent = Math.min(Math.round((totalCals / goal) * 100), 100)
@@ -145,7 +151,7 @@ export default function Calendar() {
                     <div className="absolute inset-0 p-2 flex flex-col">
                       <div className="text-white font-bold text-lg mb-auto">{day}</div>
                       
-                      {workout && (
+                      {workout && workout.workout && (
                         <div className="text-xs text-gray-400 mb-1 truncate">
                           {workout.workout}
                         </div>
