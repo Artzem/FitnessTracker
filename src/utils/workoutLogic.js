@@ -10,6 +10,12 @@ export const getTodayWorkout = (today, skippedDays = []) => {
 export const defaultWorkouts = {
   'Chest & Triceps': [
     { 
+      name: 'Warmup/Stretch',
+      sets: [
+        { weight: '', reps: '5-10 min', completed: false, notes: '' }
+      ]
+    },
+    { 
       name: 'Bench Press',
       sets: [
         { weight: '', reps: '8-12', completed: false, notes: '' },
@@ -18,7 +24,7 @@ export const defaultWorkouts = {
       ]
     },
     { 
-      name: 'Incline Dumbbell Press',
+      name: 'Chest Machine Press',
       sets: [
         { weight: '', reps: '10', completed: false, notes: '' },
         { weight: '', reps: '10', completed: false, notes: '' },
@@ -26,7 +32,23 @@ export const defaultWorkouts = {
       ]
     },
     { 
-      name: 'Chest Fly Machine',
+      name: 'Dips',
+      sets: [
+        { weight: 'Bodyweight', reps: '10-12', completed: false, notes: '' },
+        { weight: 'Bodyweight', reps: '10-12', completed: false, notes: '' },
+        { weight: 'Bodyweight', reps: '10-12', completed: false, notes: '' }
+      ]
+    },
+    { 
+      name: 'Seated Triceps Extension Machine',
+      sets: [
+        { weight: '', reps: '12', completed: false, notes: '' },
+        { weight: '', reps: '12', completed: false, notes: '' },
+        { weight: '', reps: '12', completed: false, notes: '' }
+      ]
+    },
+    { 
+      name: 'Chest Flys',
       sets: [
         { weight: '', reps: '12', completed: false, notes: '' },
         { weight: '', reps: '12', completed: false, notes: '' },
@@ -35,14 +57,6 @@ export const defaultWorkouts = {
     },
     { 
       name: 'Tricep Rope Pushdown',
-      sets: [
-        { weight: '', reps: '12', completed: false, notes: '' },
-        { weight: '', reps: '12', completed: false, notes: '' },
-        { weight: '', reps: '12', completed: false, notes: '' }
-      ]
-    },
-    { 
-      name: 'Tricep Overhead Extension',
       sets: [
         { weight: '', reps: '12', completed: false, notes: '' },
         { weight: '', reps: '12', completed: false, notes: '' },
@@ -94,6 +108,12 @@ export const defaultWorkouts = {
   ],
   'Legs': [
     { 
+      name: 'Warmup (Treadmill/Stretches)',
+      sets: [
+        { weight: '', reps: '5-10 min', completed: false, notes: '' }
+      ]
+    },
+    { 
       name: 'Squats',
       sets: [
         { weight: '', reps: '8-12', completed: false, notes: '' },
@@ -102,7 +122,15 @@ export const defaultWorkouts = {
       ]
     },
     { 
-      name: 'Leg Press',
+      name: 'Romanian Deadlifts',
+      sets: [
+        { weight: '', reps: '10', completed: false, notes: '' },
+        { weight: '', reps: '10', completed: false, notes: '' },
+        { weight: '', reps: '10', completed: false, notes: '' }
+      ]
+    },
+    { 
+      name: 'Leg Extensions',
       sets: [
         { weight: '', reps: '12', completed: false, notes: '' },
         { weight: '', reps: '12', completed: false, notes: '' },
@@ -110,15 +138,7 @@ export const defaultWorkouts = {
       ]
     },
     { 
-      name: 'Hamstring Curl',
-      sets: [
-        { weight: '', reps: '12', completed: false, notes: '' },
-        { weight: '', reps: '12', completed: false, notes: '' },
-        { weight: '', reps: '12', completed: false, notes: '' }
-      ]
-    },
-    { 
-      name: 'Leg Extension',
+      name: 'Hamstring Curls',
       sets: [
         { weight: '', reps: '12', completed: false, notes: '' },
         { weight: '', reps: '12', completed: false, notes: '' },
