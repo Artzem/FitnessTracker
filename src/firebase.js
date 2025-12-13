@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth"; // <- import getAuth
+import { getFirestore } from "firebase/firestore"; // 👈 New Import
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -12,3 +13,4 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app); // <- export auth so AuthContext can use it
+export const db = getFirestore(app); // 👈 New Export for dataSync.js
