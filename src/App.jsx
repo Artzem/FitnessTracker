@@ -1,13 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import Login from './pages/Login'
-import Signup from './pages/Signup'
-import Home from './pages/Home'
-import Workout from './pages/Workout'
-import Food from './pages/Food'
-import Edit from './pages/Edit'
-import Calendar from './pages/Calendar'
-import DayDetail from './pages/DayDetail'
+import Login from "./components/Login";
+import Signup from "./components/Signup";
+import Home from './components/Home'
+import Workout from './components/Workout'
+import Food from './components/Food'
+import Edit from './components/Edit'
+import Calendar from './components/Calendar'
+import DayDetail from './components/DayDetail'
 
 function PrivateRoute({ children }) {
   const { currentUser } = useAuth()
