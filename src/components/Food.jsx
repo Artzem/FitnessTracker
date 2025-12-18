@@ -5,11 +5,18 @@ import { getDateKey } from '../utils/date'
 
 export default function Food() {
   const navigate = useNavigate()
-  const [foodData, setFoodData] = useState({ items: [], calorieGoal: 2000, proteinGoal: 150 })
+  const [foodData, setFoodData] = useState({ 
+    breakfast: [], 
+    lunch: [], 
+    dinner: [], 
+    calorieGoal: 2000, 
+    proteinGoal: 150 
+  })
   const [foodLibrary, setFoodLibrary] = useState([])
   const [totals, setTotals] = useState({ calories: 0, protein: 0 })
   const [loading, setLoading] = useState(true)
   const [showAddFood, setShowAddFood] = useState(false)
+  const [selectedMeal, setSelectedMeal] = useState('breakfast')
 
   useEffect(() => {
     const load = async () => {
@@ -29,21 +36,23 @@ export default function Food() {
     let calories = 0
     let protein = 0
     
-    if (data.items) {
-      data.items.forEach(item => {
-        if (item.eaten) {
-          calories += Number(item.calories) || 0
-          protein += Number(item.protein) || 0
-        }
-      })
-    }
+    ;['breakfast', 'lunch', 'dinner'].forEach(meal => {
+      if (data[meal]) {
+        data[meal].forEach(item => {
+          if (item.eaten) {
+            calories += Number(item.calories) || 0
+            protein += Number(item.protein) || 0
+          }
+        })
+      }
+    })
     
     setTotals({ calories, protein })
   }
 
-  const toggleFood = async (idx) => {
+  const toggleFood = async (meal, idx) => {
     const updated = { ...foodData }
-    updated.items[idx].eaten = !updated.items[idx].eaten
+    updated[meal][idx].eaten = !updated[meal][idx].eaten
     setFoodData(updated)
     calculateTotals(updated)
     
@@ -54,7 +63,10 @@ export default function Food() {
 
   const addFoodFromLibrary = async (food) => {
     const updated = { ...foodData }
-    updated.items.push({ ...food, eaten: false })
+    if (!updated[selectedMeal]) {
+      updated[selectedMeal] = []
+    }
+    updated[selectedMeal].push({ ...food, eaten: false })
     setFoodData(updated)
     
     const today = new Date()
@@ -63,15 +75,27 @@ export default function Food() {
     setShowAddFood(false)
   }
 
-  const removeFoodItem = async (idx) => {
+  const removeFoodItem = async (meal, idx) => {
     const updated = { ...foodData }
-    updated.items = updated.items.filter((_, i) => i !== idx)
+    updated[meal] = updated[meal].filter((_, i) => i !== idx)
     setFoodData(updated)
     calculateTotals(updated)
     
     const today = new Date()
     const dateKey = getDateKey(today)
     await syncFood(dateKey, updated)
+  }
+
+  const mealIcons = {
+    breakfast: '🌅',
+    lunch: '☀️',
+    dinner: '🌙'
+  }
+
+  const mealNames = {
+    breakfast: 'Breakfast',
+    lunch: 'Lunch',
+    dinner: 'Dinner'
   }
 
   if (loading) {
@@ -135,92 +159,147 @@ export default function Food() {
           </div>
         </div>
 
-        <div className="relative group mb-8">
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-green-600 to-teal-600 rounded-2xl blur opacity-20"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-3xl font-black text-white">Today's Food</h2>
-              <button
-                onClick={() => setShowAddFood(!showAddFood)}
-                className="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 border border-green-500/30 rounded-lg font-semibold transition-all"
-              >
-                {showAddFood ? '✕ Close' : '➕ Add Food'}
-              </button>
-            </div>
+        {/* Add Food Section */}
+        {showAddFood && (
+          <div className="relative group mb-8">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl blur opacity-30"></div>
+            <div className="relative bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-white text-xl">Add Food</h3>
+                <button
+                  onClick={() => setShowAddFood(false)}
+                  className="text-gray-400 hover:text-white text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
 
-            {showAddFood && (
-              <div className="mb-6 p-4 bg-white/5 rounded-xl border border-white/10">
-                <h3 className="font-bold text-white mb-3">Select from Library</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
-                  {foodLibrary.map((food, idx) => (
+              <div className="mb-4">
+                <label className="block text-sm font-bold text-green-300 uppercase tracking-wider mb-2">Select Meal</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {['breakfast', 'lunch', 'dinner'].map(meal => (
                     <button
-                      key={idx}
-                      onClick={() => addFoodFromLibrary(food)}
-                      className="text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-all"
+                      key={meal}
+                      onClick={() => setSelectedMeal(meal)}
+                      className={`p-3 rounded-lg font-semibold transition-all ${
+                        selectedMeal === meal
+                          ? 'bg-green-500/30 border-2 border-green-500 text-green-300'
+                          : 'bg-white/5 border-2 border-white/20 text-white hover:border-white/40'
+                      }`}
                     >
-                      <p className="font-semibold text-white">{food.name}</p>
-                      <p className="text-sm text-gray-400">{food.calories} cal • {food.protein}g</p>
+                      <div className="text-2xl mb-1">{mealIcons[meal]}</div>
+                      <div className="text-sm">{mealNames[meal]}</div>
                     </button>
                   ))}
                 </div>
-                {foodLibrary.length === 0 && (
-                  <div className="text-center py-6">
-                    <p className="text-gray-400 mb-3">No foods in library yet</p>
-                    <button
-                      onClick={() => navigate('/edit')}
-                      className="text-green-400 hover:text-green-300 underline"
-                    >
-                      Add foods to library →
-                    </button>
-                  </div>
-                )}
               </div>
-            )}
-            
-            {foodData.items && foodData.items.length > 0 ? (
-              <div className="space-y-3">
-                {foodData.items.map((item, idx) => (
-                  <div
+
+              <h4 className="font-bold text-white mb-3">Select from Library</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
+                {foodLibrary.map((food, idx) => (
+                  <button
                     key={idx}
-                    className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                      item.eaten
-                        ? 'bg-green-500/10 border-green-500/30'
-                        : 'bg-white/5 border-white/10'
-                    }`}
+                    onClick={() => addFoodFromLibrary(food)}
+                    className="text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 transition-all"
                   >
-                    <input
-                      type="checkbox"
-                      checked={item.eaten}
-                      onChange={() => toggleFood(idx)}
-                      className="w-6 h-6 rounded border-2 border-white/30 bg-white/10 checked:bg-green-500 checked:border-green-500 cursor-pointer transition-all"
-                    />
-                    <div className="flex-1">
-                      <span className={`font-semibold text-lg ${item.eaten ? 'text-green-300' : 'text-white'}`}>
-                        {item.name}
-                      </span>
-                    </div>
-                    <div className="flex gap-4 text-sm">
-                      <span className="bg-orange-500/20 text-orange-300 px-3 py-1 rounded-full border border-orange-500/30">
-                        {item.calories} cal
-                      </span>
-                      <span className="bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full border border-blue-500/30">
-                        {item.protein}g
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => removeFoodItem(idx)}
-                      className="text-red-400 hover:text-red-300 transition-all"
-                    >
-                      🗑️
-                    </button>
-                  </div>
+                    <p className="font-semibold text-white">{food.name}</p>
+                    <p className="text-sm text-gray-400">{food.calories} cal • {food.protein}g</p>
+                  </button>
                 ))}
               </div>
-            ) : (
-              <p className="text-gray-500 italic text-center py-8">No food items added yet</p>
-            )}
+              {foodLibrary.length === 0 && (
+                <div className="text-center py-6">
+                  <p className="text-gray-400 mb-3">No foods in library yet</p>
+                  <button
+                    onClick={() => navigate('/edit')}
+                    className="text-green-400 hover:text-green-300 underline"
+                  >
+                    Add foods to library →
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Meals Sections */}
+        {['breakfast', 'lunch', 'dinner'].map(meal => (
+          <div key={meal} className="relative group mb-6">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-green-600 to-teal-600 rounded-2xl blur opacity-20"></div>
+            <div className="relative bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-4xl">{mealIcons[meal]}</span>
+                  <h2 className="text-3xl font-black text-white">{mealNames[meal]}</h2>
+                </div>
+                {!showAddFood && (
+                  <button
+                    onClick={() => {
+                      setSelectedMeal(meal)
+                      setShowAddFood(true)
+                    }}
+                    className="px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-300 border border-green-500/30 rounded-lg font-semibold transition-all text-sm"
+                  >
+                    ➕ Add
+                  </button>
+                )}
+              </div>
+              
+              {foodData[meal] && foodData[meal].length > 0 ? (
+                <div className="space-y-3">
+                  {foodData[meal].map((item, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
+                        item.eaten
+                          ? 'bg-green-500/10 border-green-500/30'
+                          : 'bg-white/5 border-white/10'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={item.eaten}
+                        onChange={() => toggleFood(meal, idx)}
+                        className="w-6 h-6 rounded border-2 border-white/30 bg-white/10 checked:bg-green-500 checked:border-green-500 cursor-pointer transition-all"
+                      />
+                      <div className="flex-1">
+                        <span className={`font-semibold text-lg ${item.eaten ? 'text-green-300' : 'text-white'}`}>
+                          {item.name}
+                        </span>
+                      </div>
+                      <div className="flex gap-4 text-sm">
+                        <span className="bg-orange-500/20 text-orange-300 px-3 py-1 rounded-full border border-orange-500/30">
+                          {item.calories} cal
+                        </span>
+                        <span className="bg-blue-500/20 text-blue-300 px-3 py-1 rounded-full border border-blue-500/30">
+                          {item.protein}g
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => removeFoodItem(meal, idx)}
+                        className="text-red-400 hover:text-red-300 transition-all"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 italic text-center py-4">No items added yet</p>
+              )}
+            </div>
+          </div>
+        ))}
+
+        {/* Global Add Button */}
+        {!showAddFood && (
+          <button
+            onClick={() => setShowAddFood(true)}
+            className="w-full py-6 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-black text-xl rounded-2xl shadow-2xl transition-all transform hover:scale-105"
+          >
+            ➕ Add Food
+          </button>
+        )}
       </div>
     </div>
   )

@@ -1,19 +1,123 @@
-export const getTodayWorkout = (today, skippedDays = []) => {
-  const cycle = ['Chest & Triceps', 'Back & Biceps', 'Legs', 'Rest']
-  const startDate = new Date('2025-01-01')
-  const daysDiff = Math.floor((today - startDate) / (1000 * 60 * 60 * 24))
-  const activeDays = daysDiff - skippedDays.filter(d => d < daysDiff).length
-  const index = Math.abs(activeDays) % cycle.length
-  return cycle[index]
+/**
+ * Fixed rest days (0 = Sunday, 3 = Wednesday)
+ */
+const FIXED_REST_DAYS = [0, 3] // Sunday and Wednesday
+
+/**
+ * Workout rotation (excluding rest days)
+ */
+const WORKOUT_ROTATION = ['Chest & Triceps', 'Back & Biceps', 'Legs']
+
+/**
+ * Check if a date is a fixed rest day
+ */
+export const isFixedRestDay = (date) => {
+  const dayOfWeek = new Date(date).getDay()
+  return FIXED_REST_DAYS.includes(dayOfWeek)
 }
 
+/**
+ * Get the workout for a specific date based on manual overrides and rotation
+ */
+export const getWorkoutForDate = (date, overrides = {}) => {
+  const dateKey = getDateKeyFromDate(date)
+  
+  // Check if user manually set this day
+  if (overrides[dateKey]) {
+    return overrides[dateKey]
+  }
+  
+  // Check if it's a fixed rest day
+  if (isFixedRestDay(date)) {
+    return 'Rest'
+  }
+  
+  // Calculate position in workout rotation
+  const startDate = new Date('2024-12-16') // Monday = Chest & Triceps
+  startDate.setHours(0, 0, 0, 0)
+  
+  const currentDate = new Date(date)
+  currentDate.setHours(0, 0, 0, 0)
+  
+  // Count workout days (excluding fixed rest days and manual rest days)
+  let workoutDayCount = 0
+  let tempDate = new Date(startDate)
+  
+  while (tempDate < currentDate) {
+    const tempDateKey = getDateKeyFromDate(tempDate)
+    const isManualRest = overrides[tempDateKey] === 'Rest'
+    
+    if (!isFixedRestDay(tempDate) && !isManualRest) {
+      workoutDayCount++
+    }
+    
+    tempDate.setDate(tempDate.getDate() + 1)
+  }
+  
+  return WORKOUT_ROTATION[workoutDayCount % WORKOUT_ROTATION.length]
+}
+
+/**
+ * Get today's workout
+ */
+export const getTodayWorkout = (today, overrides = {}) => {
+  return getWorkoutForDate(today, overrides)
+}
+
+/**
+ * Generate workout schedule for a date range
+ */
+export const generateSchedule = (startDate, endDate, overrides = {}) => {
+  const schedule = []
+  const current = new Date(startDate)
+  current.setHours(0, 0, 0, 0)
+  
+  const end = new Date(endDate)
+  end.setHours(0, 0, 0, 0)
+  
+  while (current <= end) {
+    const dateKey = getDateKeyFromDate(current)
+    const workout = getWorkoutForDate(current, overrides)
+    
+    schedule.push({
+      date: new Date(current),
+      dateKey: dateKey,
+      workout: workout,
+      isToday: dateKey === getDateKeyFromDate(new Date()),
+      isPast: current < new Date().setHours(0, 0, 0, 0),
+      isFixedRest: isFixedRestDay(current),
+      isManualOverride: !!overrides[dateKey]
+    })
+    
+    current.setDate(current.getDate() + 1)
+  }
+  
+  return schedule
+}
+
+/**
+ * Helper to get date key from date object
+ */
+function getDateKeyFromDate(date) {
+  const d = new Date(date)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Get available workout options
+ */
+export const getWorkoutOptions = () => {
+  return ['Rest', ...WORKOUT_ROTATION]
+}
+
+/**
+ * Default exercises for each workout type
+ */
 export const defaultWorkouts = {
   'Chest & Triceps': [
     { 
       name: 'Warmup/Stretch',
-      sets: [
-        { weight: '', reps: '5-10 min', completed: false, notes: '' }
-      ]
+      sets: [{ weight: '', reps: '5-10 min', completed: false, notes: '' }]
     },
     { 
       name: 'Bench Press',
@@ -34,9 +138,9 @@ export const defaultWorkouts = {
     { 
       name: 'Dips',
       sets: [
-        { weight: 'Bodyweight', reps: '10-12', completed: false, notes: '' },
-        { weight: 'Bodyweight', reps: '10-12', completed: false, notes: '' },
-        { weight: 'Bodyweight', reps: '10-12', completed: false, notes: '' }
+        { weight: 'BW', reps: '10-12', completed: false, notes: '' },
+        { weight: 'BW', reps: '10-12', completed: false, notes: '' },
+        { weight: 'BW', reps: '10-12', completed: false, notes: '' }
       ]
     },
     { 
@@ -108,10 +212,8 @@ export const defaultWorkouts = {
   ],
   'Legs': [
     { 
-      name: 'Warmup (Treadmill/Stretches)',
-      sets: [
-        { weight: '', reps: '5-10 min', completed: false, notes: '' }
-      ]
+      name: 'Warmup',
+      sets: [{ weight: '', reps: '5-10 min', completed: false, notes: '' }]
     },
     { 
       name: 'Squats',
@@ -153,6 +255,7 @@ export const defaultWorkouts = {
         { weight: '', reps: '15', completed: false, notes: '' }
       ]
     }
+
   ],
   'Rest': []
 }

@@ -8,6 +8,7 @@ import {
   signInWithPopup
 } from 'firebase/auth'
 import { auth } from '../firebase'
+import { clearLocalCache } from '../utils/dataSync'
 
 const AuthContext = createContext()
 
@@ -27,7 +28,8 @@ export function AuthProvider({ children }) {
     return signInWithEmailAndPassword(auth, email, password)
   }
 
-  function logout() {
+  async function logout() {
+    clearLocalCache() // Clear user-specific cache on logout
     return signOut(auth)
   }
 

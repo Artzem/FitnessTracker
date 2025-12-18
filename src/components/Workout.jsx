@@ -17,17 +17,29 @@ export default function Workout() {
         const today = new Date()
         const dateKey = getDateKey(today)
         
+        console.log('Today:', today)
+        console.log('Date key:', dateKey)
+        
         const schedule = await loadSchedule()
+        console.log('Schedule:', schedule)
+        
         const workout = getTodayWorkout(today, schedule.skippedDays || [])
+        console.log('Today\'s workout:', workout)
         setTodayWorkout(workout)
 
         const allWorkouts = await loadWorkouts()
+        console.log('All workouts:', allWorkouts)
+        
         let exerciseList = allWorkouts[workout] || []
+        console.log('Exercise list for', workout, ':', exerciseList)
         
         // Load saved progress for today
         const savedProgress = await loadWorkoutProgress(dateKey)
+        console.log('Saved progress:', savedProgress)
+        
         if (savedProgress && savedProgress.workout === workout && savedProgress.exercises) {
           exerciseList = savedProgress.exercises
+          console.log('Using saved progress exercises')
         }
         
         setExercises(exerciseList)
@@ -104,6 +116,8 @@ export default function Workout() {
           <span>Back to Home</span>
         </button>
 
+        
+
         <div className="relative group mb-8">
           <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-3xl blur opacity-50 group-hover:opacity-75 transition duration-300"></div>
           <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
@@ -139,8 +153,22 @@ export default function Workout() {
             <div className="absolute -inset-1 bg-gradient-to-r from-green-600 to-emerald-600 rounded-3xl blur opacity-50"></div>
             <div className="relative bg-white/10 backdrop-blur-xl p-16 rounded-3xl border border-white/20 text-center">
               <div className="text-7xl mb-4">😴</div>
-              <h3 className="text-3xl font-bold text-white mb-2">Rest Day</h3>
-              <p className="text-gray-400 text-lg">Recovery is part of the process</p>
+              <h3 className="text-3xl font-bold text-white mb-2">
+                {todayWorkout === 'Rest' ? 'Rest Day' : 'No Exercises Found'}
+              </h3>
+              <p className="text-gray-400 text-lg">
+                {todayWorkout === 'Rest' 
+                  ? 'Recovery is part of the process' 
+                  : 'Go to Edit to add exercises for this workout'}
+              </p>
+              {todayWorkout !== 'Rest' && (
+                <button
+                  onClick={() => navigate('/edit')}
+                  className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl"
+                >
+                  Go to Edit
+                </button>
+              )}
             </div>
           </div>
         ) : (

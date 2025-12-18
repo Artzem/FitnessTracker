@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import Login from "./components/Login";
-import Signup from "./components/Signup";
+import Login from './components/Login'
+import Signup from './components/Signup'
 import Home from './components/Home'
 import Workout from './components/Workout'
 import Food from './components/Food'
