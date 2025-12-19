@@ -1,8 +1,13 @@
+// src/utils/storage.js
+
 export const STORAGE_KEYS = {
   WORKOUTS: 'fittrack_workouts',
   SCHEDULE: 'fittrack_schedule',
   FOOD_PREFIX: 'fittrack_food_',
-  FOOD_LIST: 'fittrack_food_list'
+  FOOD_LIST: 'fittrack_food_list',
+  // New keys for your updated logic
+  USER_OVERRIDES: 'fittrack_workout_overrides', 
+  WORKOUT_PROGRESS: 'fittrack_workout_progress_'
 }
 
 export const storage = {
@@ -17,6 +22,13 @@ export const storage = {
   set: (key, value) => {
     try {
       localStorage.setItem(key, JSON.stringify(value))
+    } catch (e) {
+      console.error('Storage error:', e)
+    }
+  },
+  remove: (key) => {
+    try {
+      localStorage.removeItem(key)
     } catch (e) {
       console.error('Storage error:', e)
     }

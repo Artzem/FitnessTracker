@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import { loadSchedule, loadWorkouts, loadWorkoutProgress, syncWorkoutProgress } from '../utils/dataSync'
 import { getTodayWorkout } from '../utils/workoutLogic'
 import { getDateKey } from '../utils/date'
 
 export default function Workout() {
   const navigate = useNavigate()
+  const { currentUser } = useAuth()
   const [todayWorkout, setTodayWorkout] = useState('')
   const [exercises, setExercises] = useState([])
   const [loading, setLoading] = useState(true)
@@ -13,33 +15,19 @@ export default function Workout() {
 
   useEffect(() => {
     const load = async () => {
+      if (!currentUser) return;
       try {
         const today = new Date()
-        const dateKey = getDateKey(today)
-        
-        console.log('Today:', today)
-        console.log('Date key:', dateKey)
-        
-        const schedule = await loadSchedule()
-        console.log('Schedule:', schedule)
-        
-        const workout = getTodayWorkout(today, schedule.skippedDays || [])
-        console.log('Today\'s workout:', workout)
-        setTodayWorkout(workout)
+        const schedule = await loadSchedule(currentUser.uid)
+        const workoutName = getTodayWorkout(today, schedule.overrides || {})
+        setTodayWorkout(workoutName)
 
-        const allWorkouts = await loadWorkouts()
-        console.log('All workouts:', allWorkouts)
+        const allWorkouts = await loadWorkouts(currentUser.uid)
+        let exerciseList = allWorkouts[workoutName] || []
         
-        let exerciseList = allWorkouts[workout] || []
-        console.log('Exercise list for', workout, ':', exerciseList)
-        
-        // Load saved progress for today
-        const savedProgress = await loadWorkoutProgress(dateKey)
-        console.log('Saved progress:', savedProgress)
-        
-        if (savedProgress && savedProgress.workout === workout && savedProgress.exercises) {
+        const savedProgress = await loadWorkoutProgress(currentUser.uid, getDateKey(today))
+        if (savedProgress && savedProgress.workout === workoutName && savedProgress.exercises) {
           exerciseList = savedProgress.exercises
-          console.log('Using saved progress exercises')
         }
         
         setExercises(exerciseList)
@@ -51,203 +39,77 @@ export default function Workout() {
       }
     }
     load()
-  }, [])
+  }, [currentUser])
 
-  const calculateProgress = (exerciseList) => {
-    if (exerciseList.length === 0) {
-      setProgress(0)
-      return
-    }
-    let totalSets = 0
-    let completedSets = 0
-    
-    exerciseList.forEach(ex => {
-      if (ex.sets && Array.isArray(ex.sets)) {
-        ex.sets.forEach(set => {
-          totalSets++
-          if (set.completed) completedSets++
-        })
-      }
-    })
-    
-    setProgress(totalSets > 0 ? Math.round((completedSets / totalSets) * 100) : 0)
+  const calculateProgress = (list) => {
+    let total = 0, done = 0
+    list.forEach(ex => ex.sets?.forEach(s => { total++; if (s.completed) done++; }))
+    setProgress(total > 0 ? Math.round((done / total) * 100) : 0)
   }
 
-  const toggleSet = async (exerciseIdx, setIdx) => {
-    const updated = exercises.map((ex, idx) => {
-      if (idx === exerciseIdx) {
-        const newSets = ex.sets.map((set, sIdx) => 
-          sIdx === setIdx ? { ...set, completed: !set.completed } : set
-        )
-        return { ...ex, sets: newSets }
-      }
-      return ex
-    })
+  const toggleSet = async (exIdx, sIdx) => {
+    const updated = exercises.map((ex, i) => i === exIdx ? {
+      ...ex, sets: ex.sets.map((s, j) => j === sIdx ? { ...s, completed: !s.completed } : s)
+    } : ex)
     
     setExercises(updated)
     calculateProgress(updated)
     
-    // Save progress
-    const today = new Date()
-    const dateKey = getDateKey(today)
-    await syncWorkoutProgress(dateKey, {
+    await syncWorkoutProgress(currentUser.uid, getDateKey(new Date()), {
       workout: todayWorkout,
-      exercises: updated,
-      date: dateKey
+      exercises: updated
     })
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
-        <div className="text-white text-2xl">Loading...</div>
-      </div>
-    )
-  }
+  if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Loading...</div>
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-4 sm:p-8">
-      <div className="max-w-4xl mx-auto pt-4 pb-8">
-        <button
-          onClick={() => navigate('/')}
-          className="group flex items-center gap-2 text-blue-400 hover:text-blue-300 font-semibold mb-8 transition-all"
-        >
-          <span className="group-hover:-translate-x-1 transition-transform">←</span>
-          <span>Back to Home</span>
-        </button>
-
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900 p-6 text-white">
+      <div className="max-w-4xl mx-auto">
+        <button onClick={() => navigate('/')} className="mb-8 text-blue-400 font-bold uppercase tracking-widest hover:text-blue-300">← Home</button>
         
-
-        <div className="relative group mb-8">
-          <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-3xl blur opacity-50 group-hover:opacity-75 transition duration-300"></div>
-          <div className="relative bg-white/10 backdrop-blur-xl rounded-3xl border border-white/20 shadow-2xl overflow-hidden">
-            <div className="p-8 sm:p-12">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h1 className="text-5xl sm:text-6xl font-black text-white mb-2">{todayWorkout}</h1>
-                  <p className="text-gray-400 text-lg">Today's Training Session</p>
-                </div>
-                <div className="text-6xl">💪</div>
-              </div>
-              
-              {exercises.length > 0 && (
-                <div className="mt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-white font-semibold">Overall Progress</span>
-                    <span className="text-white font-bold">{progress}%</span>
-                  </div>
-                  <div className="w-full bg-black/30 rounded-full h-4 overflow-hidden">
-                    <div
-                      className="bg-gradient-to-r from-blue-500 to-cyan-500 h-4 rounded-full transition-all duration-500"
-                      style={{ width: `${progress}%` }}
-                    ></div>
-                  </div>
-                </div>
-              )}
-            </div>
+        <div className="bg-white/10 backdrop-blur-md p-10 rounded-3xl border border-white/20 mb-8 shadow-2xl">
+          <h1 className="text-6xl font-black uppercase tracking-tighter italic mb-4">{todayWorkout}</h1>
+          <div className="w-full bg-black/40 rounded-full h-4">
+            <div className="bg-gradient-to-r from-blue-500 to-cyan-400 h-full rounded-full transition-all duration-700" style={{ width: `${progress}%` }}></div>
           </div>
         </div>
 
         {exercises.length === 0 ? (
-          <div className="relative group">
-            <div className="absolute -inset-1 bg-gradient-to-r from-green-600 to-emerald-600 rounded-3xl blur opacity-50"></div>
-            <div className="relative bg-white/10 backdrop-blur-xl p-16 rounded-3xl border border-white/20 text-center">
-              <div className="text-7xl mb-4">😴</div>
-              <h3 className="text-3xl font-bold text-white mb-2">
-                {todayWorkout === 'Rest' ? 'Rest Day' : 'No Exercises Found'}
-              </h3>
-              <p className="text-gray-400 text-lg">
-                {todayWorkout === 'Rest' 
-                  ? 'Recovery is part of the process' 
-                  : 'Go to Edit to add exercises for this workout'}
-              </p>
-              {todayWorkout !== 'Rest' && (
-                <button
-                  onClick={() => navigate('/edit')}
-                  className="mt-6 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl"
-                >
-                  Go to Edit
-                </button>
-              )}
-            </div>
+          <div className="text-center py-20 bg-white/5 rounded-3xl border border-white/10">
+            <p className="text-2xl font-bold">Rest Day 😴</p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {exercises.map((ex, exerciseIdx) => {
-              const allSetsComplete = ex.sets && ex.sets.every(set => set.completed)
-              const completedCount = ex.sets ? ex.sets.filter(set => set.completed).length : 0
-              const totalSets = ex.sets ? ex.sets.length : 0
-              
-              return (
-                <div key={exerciseIdx} className="group relative">
-                  <div className={`absolute -inset-0.5 rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-300 ${
-                    allSetsComplete
-                      ? 'bg-gradient-to-r from-green-600 to-emerald-600' 
-                      : 'bg-gradient-to-r from-blue-600 to-purple-600'
-                  }`}></div>
-                  <div className={`relative backdrop-blur-xl rounded-2xl border p-6 transition-all duration-300 ${
-                    allSetsComplete
-                      ? 'bg-green-500/10 border-green-500/30' 
-                      : 'bg-white/10 border-white/20'
-                  }`}>
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className={`text-2xl font-bold mb-2 ${allSetsComplete ? 'text-green-300' : 'text-white'}`}>
-                          {ex.name}
-                        </h3>
-                      </div>
-                      <div className="text-4xl ml-4">
-                        {allSetsComplete ? '✅' : exerciseIdx === 0 ? '🔥' : exerciseIdx === 1 ? '💯' : '⭐'}
-                      </div>
-                    </div>
-                    
-                    {/* Set Checkboxes */}
-                    <div className="flex flex-wrap gap-3">
-                      {ex.sets && ex.sets.map((set, setIdx) => {
-                        return (
-                          <button
-                            key={setIdx}
-                            onClick={() => toggleSet(exerciseIdx, setIdx)}
-                            className={`flex flex-col items-start gap-1 px-4 py-3 rounded-lg font-semibold transition-all ${
-                              set.completed
-                                ? 'bg-green-500/30 border-2 border-green-500 text-green-300'
-                                : 'bg-white/10 border-2 border-white/20 text-white hover:border-white/40'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-lg">{set.completed ? '✓' : '○'}</span>
-                              <span>Set {setIdx + 1}</span>
-                            </div>
-                            <div className="text-xs opacity-70">
-                              {set.weight && <span>{set.weight} × </span>}
-                              <span>{set.reps} reps</span>
-                            </div>
-                          </button>
-                        )
-                      })}
-                    </div>
-                    
-                    {/* Progress for this exercise */}
-                    <div className="mt-4">
-                      <div className="flex items-center justify-between mb-1 text-xs text-gray-400">
-                        <span>Exercise Progress</span>
-                        <span>{completedCount}/{totalSets} sets</span>
-                      </div>
-                      <div className="w-full bg-black/30 rounded-full h-2 overflow-hidden">
-                        <div
-                          className={`h-2 rounded-full transition-all duration-500 ${
-                            allSetsComplete 
-                              ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
-                              : 'bg-gradient-to-r from-blue-500 to-purple-500'
-                          }`}
-                          style={{ width: `${totalSets > 0 ? (completedCount / totalSets) * 100 : 0}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
+          <div className="space-y-6">
+            {exercises.map((ex, i) => (
+              <div key={i} className="bg-white/10 p-8 rounded-2xl border border-white/10">
+                <h3 className="text-2xl font-bold mb-6 border-b border-white/10 pb-2 uppercase tracking-wide">{ex.name}</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {ex.sets.map((s, j) => (
+                    <button
+                      key={j}
+                      onClick={() => toggleSet(i, j)}
+                      className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${
+                        s.completed 
+                          ? 'bg-green-500/40 border-green-400 shadow-[0_0_15px_rgba(34,197,94,0.3)]' 
+                          : 'bg-white/5 border-white/10 hover:bg-white/15'
+                      }`}
+                    >
+                      {/* Show weight if it exists and isn't empty, otherwise show reps larger */}
+                      {s.weight ? (
+                        <>
+                          <span className="text-xl font-black">{s.weight} lbs</span>
+                          <span className="text-xs uppercase opacity-60 font-bold">{s.reps} reps</span>
+                        </>
+                      ) : (
+                        <span className="text-xl font-black py-1">{s.reps}</span>
+                      )}
+                      {s.completed && <span className="mt-1 text-sm">✓ Done</span>}
+                    </button>
+                  ))}
                 </div>
-              )
-            })}
+              </div>
+            ))}
           </div>
         )}
       </div>
