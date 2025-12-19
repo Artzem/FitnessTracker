@@ -1,12 +1,10 @@
-// src/utils/storage.js
 
 export const STORAGE_KEYS = {
   WORKOUTS: 'fittrack_workouts',
   SCHEDULE: 'fittrack_schedule',
   FOOD_PREFIX: 'fittrack_food_',
   FOOD_LIST: 'fittrack_food_list',
-  // New keys for your updated logic
-  USER_OVERRIDES: 'fittrack_workout_overrides', 
+  USER_OVERRIDES: 'fittrack_workout_overrides',
   WORKOUT_PROGRESS: 'fittrack_workout_progress_'
 }
 

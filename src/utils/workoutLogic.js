@@ -1,5 +1,3 @@
-// src/utils/workoutLogic.js
-
 const WORKOUT_ROTATION = [
   'Back & Biceps',    
   'Chest & Triceps',  

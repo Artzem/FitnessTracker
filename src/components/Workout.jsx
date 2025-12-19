@@ -12,6 +12,7 @@ export default function Workout() {
   const [exercises, setExercises] = useState([])
   const [loading, setLoading] = useState(true)
   const [progress, setProgress] = useState(0)
+  const [saving, setSaving] = useState(false) // New state to show saving status
 
   useEffect(() => {
     const load = async () => {
@@ -48,17 +49,34 @@ export default function Workout() {
   }
 
   const toggleSet = async (exIdx, sIdx) => {
+    if (!currentUser) {
+        alert("You seem to be logged out. Please re-login.");
+        return;
+    }
+
+    // 1. Optimistic Update (Update UI immediately)
     const updated = exercises.map((ex, i) => i === exIdx ? {
       ...ex, sets: ex.sets.map((s, j) => j === sIdx ? { ...s, completed: !s.completed } : s)
     } : ex)
     
     setExercises(updated)
     calculateProgress(updated)
+    setSaving(true) // Show saving indicator
     
-    await syncWorkoutProgress(currentUser.uid, getDateKey(new Date()), {
-      workout: todayWorkout,
-      exercises: updated
-    })
+    try {
+        // 2. Save to Database
+        await syncWorkoutProgress(currentUser.uid, getDateKey(new Date()), {
+          workout: todayWorkout,
+          exercises: updated,
+          date: getDateKey(new Date())
+        })
+        console.log("Save successful!");
+    } catch (error) {
+        console.error("Save failed:", error);
+        alert(`Failed to save: ${error.message}`);
+    } finally {
+        setSaving(false);
+    }
   }
 
   if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Loading...</div>
@@ -66,7 +84,10 @@ export default function Workout() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-blue-900 p-6 text-white">
       <div className="max-w-4xl mx-auto">
-        <button onClick={() => navigate('/')} className="mb-8 text-blue-400 font-bold uppercase tracking-widest hover:text-blue-300">← Home</button>
+        <div className="flex justify-between items-center mb-8">
+            <button onClick={() => navigate('/')} className="text-blue-400 font-bold uppercase tracking-widest hover:text-blue-300">← Home</button>
+            {saving && <span className="text-green-400 text-sm font-bold animate-pulse">SAVING...</span>}
+        </div>
         
         <div className="bg-white/10 backdrop-blur-md p-10 rounded-3xl border border-white/20 mb-8 shadow-2xl">
           <h1 className="text-6xl font-black uppercase tracking-tighter italic mb-4">{todayWorkout}</h1>
@@ -95,7 +116,6 @@ export default function Workout() {
                           : 'bg-white/5 border-white/10 hover:bg-white/15'
                       }`}
                     >
-                      {/* Show weight if it exists and isn't empty, otherwise show reps larger */}
                       {s.weight ? (
                         <>
                           <span className="text-xl font-black">{s.weight} lbs</span>

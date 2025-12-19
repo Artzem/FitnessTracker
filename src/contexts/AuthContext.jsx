@@ -29,7 +29,7 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
-    clearLocalCache() // Clear user-specific cache on logout
+    clearLocalCache()
     return signOut(auth)
   }
 
@@ -46,8 +46,10 @@ export function AuthProvider({ children }) {
     return unsubscribe
   }, [])
 
+  // 👇 THIS WAS THE MISSING PIECE CAUSING THE WHITE SCREEN
   const value = {
     currentUser,
+    loading,      // <--- MAKE SURE THIS IS HERE
     signup,
     login,
     logout,

@@ -10,7 +10,23 @@ import Calendar from './components/Calendar'
 import DayDetail from './components/DayDetail'
 
 function PrivateRoute({ children }) {
-  const { currentUser } = useAuth()
+  const auth = useAuth()
+  
+  // Debug check: If auth context is broken, tell us
+  if (!auth) {
+    return <div className="p-10 text-red-500">Error: AuthContext is undefined. Check main.jsx</div>
+  }
+
+  const { currentUser, loading } = auth
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl animate-pulse">Loading App...</div>
+      </div>
+    )
+  }
+
   return currentUser ? children : <Navigate to="/login" />
 }
 
