@@ -8,7 +8,7 @@ import {
   signInWithPopup
 } from 'firebase/auth'
 import { auth } from '../firebase'
-import { clearLocalCache, loadTrainingProfile } from '../utils/dataSync'
+import { clearLocalCache } from '../utils/dataSync'
 
 const AuthContext = createContext()
 
@@ -19,7 +19,6 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [onboardingComplete, setOnboardingComplete] = useState(false)
 
   function signup(email, password) {
     return createUserWithEmailAndPassword(auth, email, password)
@@ -31,7 +30,6 @@ export function AuthProvider({ children }) {
 
   async function logout() {
     clearLocalCache()
-    setOnboardingComplete(false)
     return signOut(auth)
   }
 
@@ -40,24 +38,9 @@ export function AuthProvider({ children }) {
     return signInWithPopup(auth, provider)
   }
 
-  // Called by Onboarding component after saving the plan
-  function completeOnboarding() {
-    setOnboardingComplete(true)
-  }
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user)
-      if (user) {
-        try {
-          const profile = await loadTrainingProfile(user.uid)
-          setOnboardingComplete(!!profile?.onboardingComplete)
-        } catch {
-          setOnboardingComplete(false)
-        }
-      } else {
-        setOnboardingComplete(false)
-      }
       setLoading(false)
     })
     return unsubscribe
@@ -66,8 +49,6 @@ export function AuthProvider({ children }) {
   const value = {
     currentUser,
     loading,
-    onboardingComplete,
-    completeOnboarding,
     signup,
     login,
     logout,

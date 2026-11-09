@@ -1,9 +1,8 @@
-import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, limit, documentId } from 'firebase/firestore'
 import { db } from '../firebase'
 import { storage, STORAGE_KEYS } from './storage'
-import { defaultWorkouts, DEFAULT_PROFILE } from './workoutLogic'
-
-const SAFE_DEFAULTS = defaultWorkouts || { 'Push': [], 'Pull': [], 'Legs': [] };
+import { DEFAULT_PROFILE } from './workoutLogic'
+import { defaultWorkouts } from './basicFitPlan'
 
 const DEFAULT_DAILY_FOOD = {
   breakfast: [],
@@ -12,12 +11,6 @@ const DEFAULT_DAILY_FOOD = {
   calorieGoal: 2000,
   proteinGoal: 130,
 };
-
-const DEFAULT_ADAPTIVE_TRAINING = {
-  currentPlans: {},
-  sessionHistory: [],
-  lastLoggedWorkoutType: ''
-}
 
 const DEFAULT_DAILY_HABITS = {
   waterBottles: 0,
@@ -56,9 +49,9 @@ const getFoodLibraryMatchKey = (item = {}) =>
 
 // Only fills in a missing bucket — never overwrites what the user has saved
 const mergeWorkoutDefaults = (data) => ({
-  Push: data?.Push?.length ? data.Push : SAFE_DEFAULTS.Push,
-  Pull: data?.Pull?.length ? data.Pull : SAFE_DEFAULTS.Pull,
-  Legs: data?.Legs?.length ? data.Legs : SAFE_DEFAULTS.Legs,
+  Push: data?.Push?.length ? data.Push : defaultWorkouts.Push,
+  Pull: data?.Pull?.length ? data.Pull : defaultWorkouts.Pull,
+  Legs: data?.Legs?.length ? data.Legs : defaultWorkouts.Legs,
 })
 
 export const migrateLocalStorageToFirestore = async (userId) => {
@@ -83,7 +76,7 @@ export const syncWorkouts = async (userId, data) => {
 }
 
 export const loadWorkouts = async (userId) => {
-  if (!userId) return SAFE_DEFAULTS
+  if (!userId) return defaultWorkouts
   
   const cacheKey = `${STORAGE_KEYS.WORKOUTS}_${userId}`
   let localData = storage.get(cacheKey)
@@ -246,6 +239,26 @@ export const loadAllWorkoutProgress = async (userId) => {
   return progress
 }
 
+// Workout type of the most recent day before beforeDateKey with a completed set ('' if none).
+// Drives the Legs → Pull → Push rotation.
+export const loadLastLoggedWorkout = async (userId, beforeDateKey) => {
+  if (!userId) return ''
+  try {
+    const recent = await getDocs(query(
+      collection(db, 'users', userId, 'workoutProgress'),
+      orderBy(documentId(), 'desc'),
+      limit(14)
+    ))
+    const last = recent.docs.find((d) =>
+      d.id < beforeDateKey && d.data().exercises?.some((ex) => ex.sets?.some((set) => set.completed))
+    )
+    return last?.data().workout || ''
+  } catch (error) {
+    console.error('Error loading last logged workout:', error)
+    return ''
+  }
+}
+
 export const loadAllFoodProgress = async (userId) => {
   if (!userId) return {}
   const progress = {}
@@ -353,31 +366,4 @@ export const loadTrainingProfile = async (userId) => {
   }
 
   return localData || DEFAULT_PROFILE
-}
-
-// --- ADAPTIVE TRAINING ---
-export const syncAdaptiveTraining = async (userId, data) => {
-  if (!userId) return
-  const cacheKey = `${STORAGE_KEYS.ADAPTIVE_TRAINING}_${userId}`
-  storage.set(cacheKey, data)
-  await setDoc(doc(db, 'users', userId, 'data', 'adaptiveTraining'), data)
-}
-
-export const loadAdaptiveTraining = async (userId) => {
-  if (!userId) return DEFAULT_ADAPTIVE_TRAINING
-  const cacheKey = `${STORAGE_KEYS.ADAPTIVE_TRAINING}_${userId}`
-  const localData = storage.get(cacheKey)
-
-  try {
-    const docRef = await getDoc(doc(db, 'users', userId, 'data', 'adaptiveTraining'))
-    if (docRef.exists()) {
-      const data = { ...DEFAULT_ADAPTIVE_TRAINING, ...docRef.data() }
-      storage.set(cacheKey, data)
-      return data
-    }
-  } catch (error) {
-    console.error('Error loading adaptive training:', error)
-  }
-
-  return localData || DEFAULT_ADAPTIVE_TRAINING
 }

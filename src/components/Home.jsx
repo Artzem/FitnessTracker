@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { loadAdaptiveTraining, loadDailyHabits, loadTrainingProfile, loadWorkoutOverrides, syncDailyHabits, syncWorkoutOverrides } from '../utils/dataSync'
-import { formatHeight, getNextWorkout, getWorkoutOptions, isFixedRestDay } from '../utils/workoutLogic'
-import { GOAL_LABELS } from '../utils/planGenerator'
+import { loadDailyHabits, loadLastLoggedWorkout, loadTrainingProfile, loadWorkoutOverrides, syncDailyHabits, syncWorkoutOverrides } from '../utils/dataSync'
+import { getNextWorkout, getWorkoutOptions, isFixedRestDay } from '../utils/workoutLogic'
 import { formatDate } from '../utils/date'
 import { getDateKey } from '../utils/date'
 
@@ -30,18 +29,18 @@ export default function Home() {
       setTodayDate(formatDate(today))
       
       // ✅ Pass currentUser.uid to load the correct data
-      const [overrides, trainingProfile, habits, adaptiveState] = await Promise.all([
+      const [overrides, trainingProfile, habits, lastLogged] = await Promise.all([
         loadWorkoutOverrides(currentUser.uid),
         loadTrainingProfile(currentUser.uid),
         loadDailyHabits(currentUser.uid, todayKey),
-        loadAdaptiveTraining(currentUser.uid)
+        loadLastLoggedWorkout(currentUser.uid, todayKey)
       ])
       setWorkoutOverrides(overrides)
       setProfile(trainingProfile)
       setDailyHabits(habits)
       setWaterGoal(habits.waterGoal ?? trainingProfile?.preferredWaterGoal ?? 5)
 
-      const workout = getNextWorkout(adaptiveState.lastLoggedWorkoutType || '', overrides[todayKey])
+      const workout = getNextWorkout(lastLogged, overrides[todayKey])
       setTodayWorkout(workout)
       setLoading(false)
     }
@@ -245,41 +244,6 @@ export default function Home() {
             })}
           </div>
         </div>
-
-        {profile && (
-          <div className="bg-white/10 backdrop-blur-xl border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl">
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-              <div>
-                <p className="text-blue-300 text-sm uppercase tracking-[0.3em] font-bold">Personalized Plan</p>
-                <h3 className="text-3xl font-black text-white mt-2">Built around your current profile</h3>
-                <p className="text-gray-300 mt-3 max-w-2xl">
-                  {profile.age}-year-old {String(profile.sex || '').toLowerCase()}, {formatHeight(profile)}, {profile.bodyweight} lb. The progression engine uses your weigh-ins, rep completion, and consistency to decide whether to increase, hold, or reduce weight next session.
-                </p>
-              </div>
-              <button
-                onClick={() => navigate('/edit')}
-                className="px-5 py-3 rounded-xl bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 border border-blue-400/30 font-semibold transition-all"
-              >
-                Edit Plan
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-              <div className="bg-black/20 rounded-2xl p-4 border border-white/10">
-                <p className="text-gray-400 text-sm uppercase tracking-wider">Primary Goal</p>
-                <p className="text-white text-xl font-bold mt-1">{GOAL_LABELS[profile.goal] || profile.goal}</p>
-              </div>
-              <div className="bg-black/20 rounded-2xl p-4 border border-white/10">
-                <p className="text-gray-400 text-sm uppercase tracking-wider">Current Weight</p>
-                <p className="text-white text-xl font-bold mt-1">{profile.bodyweight} lb</p>
-              </div>
-              <div className="bg-black/20 rounded-2xl p-4 border border-white/10">
-                <p className="text-gray-400 text-sm uppercase tracking-wider">Experience</p>
-                <p className="text-white text-xl font-bold mt-1 capitalize">{profile.experience || 'Not set'}</p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

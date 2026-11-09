@@ -7,8 +7,7 @@ export const STORAGE_KEYS = {
   DAILY_HABITS: 'fittrack_daily_habits',
   USER_OVERRIDES: 'fittrack_workout_overrides',
   WORKOUT_PROGRESS: 'fittrack_workout_progress_',
-  TRAINING_PROFILE: 'fittrack_training_profile',
-  ADAPTIVE_TRAINING: 'fittrack_adaptive_training'
+  TRAINING_PROFILE: 'fittrack_training_profile'
 }
 
 export const storage = {
