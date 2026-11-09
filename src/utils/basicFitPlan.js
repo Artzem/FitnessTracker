@@ -1,4 +1,6 @@
-// Basic-Fit plan: used as the default for new accounts and by Edit's "Load Basic-Fit plan" button
+// Basic-Fit plan: the default for every account. Bump PLAN_VERSION to replace everyone's saved plan once.
+export const PLAN_VERSION = 'basic-fit-1'
+
 const exercise = (name, weight, reps, sets = 3) => ({
   name,
   sets: Array.from({ length: sets }, () => ({ weight, reps, completed: false })),

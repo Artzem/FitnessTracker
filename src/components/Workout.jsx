@@ -41,14 +41,14 @@ export default function Workout() {
           loadLastLoggedWorkout(currentUser.uid, dateKey),
         ])
 
-        // Today's saved session wins, otherwise the override or the next in the rotation
-        const workoutName = getWorkoutOptions().includes(savedProgress?.workout)
-          ? savedProgress.workout
-          : getNextWorkout(lastLogged, overrides[dateKey])
+        // A session started today (something checked off) wins; otherwise use the current plan
+        const started = getWorkoutOptions().includes(savedProgress?.workout) &&
+          savedProgress.exercises?.some((ex) => ex.sets?.some((set) => set.completed))
+        const workoutName = started ? savedProgress.workout : getNextWorkout(lastLogged, overrides[dateKey])
 
         setTodayWorkout(workoutName)
         setUnits(profile.units || 'lb')
-        setExercises(savedProgress?.exercises?.length ? savedProgress.exercises : allWorkouts[workoutName] || [])
+        setExercises(started ? savedProgress.exercises : allWorkouts[workoutName] || [])
       } catch (error) {
         console.error('Error loading workout:', error)
       } finally {

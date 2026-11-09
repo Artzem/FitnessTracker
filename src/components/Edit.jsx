@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { addOrMergeFoodLibraryItems, loadWorkouts, syncWorkouts, loadFoodList, syncFoodList, loadTrainingProfile, syncTrainingProfile } from '../utils/dataSync'
 import { DEFAULT_PROFILE, getWorkoutOptions } from '../utils/workoutLogic'
-import { defaultWorkouts } from '../utils/basicFitPlan'
 
 const WORKOUT_OPTIONS = getWorkoutOptions()
 
@@ -93,11 +92,6 @@ export default function Edit() {
   }
 
   const persistWorkouts = () => currentUser && syncWorkouts(currentUser.uid, workouts)
-
-  const loadBasicFitPlan = async () => {
-    if (!window.confirm('Replace your Push, Pull and Legs workouts with the Basic-Fit plan?')) return
-    await saveWorkouts(defaultWorkouts)
-  }
 
   // Food management
   const addFoodToList = async () => {
@@ -262,13 +256,6 @@ export default function Edit() {
                     </div>
                   ))}
                 </div>
-
-                <button
-                  onClick={loadBasicFitPlan}
-                  className="w-full py-4 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold rounded-xl transition-all"
-                >
-                  Load Basic-Fit plan
-                </button>
               </>
             )}
 

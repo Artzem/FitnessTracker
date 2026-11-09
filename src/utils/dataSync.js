@@ -2,7 +2,7 @@ import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, limit, docume
 import { db } from '../firebase'
 import { storage, STORAGE_KEYS } from './storage'
 import { DEFAULT_PROFILE } from './workoutLogic'
-import { defaultWorkouts } from './basicFitPlan'
+import { defaultWorkouts, PLAN_VERSION } from './basicFitPlan'
 
 const DEFAULT_DAILY_FOOD = {
   breakfast: [],
@@ -71,8 +71,9 @@ export function clearLocalCache() {
 export const syncWorkouts = async (userId, data) => {
   if (!userId) return
   const cacheKey = `${STORAGE_KEYS.WORKOUTS}_${userId}`
-  storage.set(cacheKey, data)
-  await setDoc(doc(db, 'users', userId, 'data', 'workouts'), data)
+  const versioned = { ...data, planVersion: PLAN_VERSION }
+  storage.set(cacheKey, versioned)
+  await setDoc(doc(db, 'users', userId, 'data', 'workouts'), versioned)
 }
 
 export const loadWorkouts = async (userId) => {
@@ -83,16 +84,19 @@ export const loadWorkouts = async (userId) => {
   
   try {
     const docRef = await getDoc(doc(db, 'users', userId, 'data', 'workouts'))
-    if (docRef.exists()) {
+    if (docRef.exists() && docRef.data().planVersion === PLAN_VERSION) {
       const data = mergeWorkoutDefaults(docRef.data())
-      storage.set(cacheKey, data)
+      storage.set(cacheKey, { ...data, planVersion: PLAN_VERSION })
       return data
     }
+    // New account, or a plan saved before Basic-Fit: replace it with Basic-Fit
+    await syncWorkouts(userId, defaultWorkouts)
+    return defaultWorkouts
   } catch (error) {
     console.error('Error loading workouts:', error)
   }
-  
-  return mergeWorkoutDefaults(localData)
+
+  return mergeWorkoutDefaults(localData?.planVersion === PLAN_VERSION ? localData : null)
 }
 
 // --- OVERRIDES ---
